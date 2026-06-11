@@ -1,9 +1,8 @@
 from logging.config import fileConfig
-
 from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from app.database.database import Base
-from app.database import models
+from sqlalchemy import pool,create_engine
+from app.database import Base
+import app.models
 from alembic import context
 
 # this is the Alembic Config object, which provides
@@ -58,12 +57,10 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    
 
+# We force Alembic to use localhost and the exact password 'postgres'
+    connectable = create_engine("postgresql+psycopg://postgres:postgres@localhost:5433/wheretf")
     with connectable.connect() as connection:
         context.configure(
             connection=connection, target_metadata=target_metadata
