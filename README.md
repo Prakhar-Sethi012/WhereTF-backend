@@ -3,6 +3,8 @@
 <a href="https://dscvit.com">
 	<img width="400" src="https://user-images.githubusercontent.com/56252312/159312411-58410727-3933-4224-b43e-4e9b627838a3.png#gh-light-mode-only" alt="GDSC VIT"/>
 </a>
+	<h2 align="center">  WhereTF  </h2>
+	<h4 align="center">  WhereTF is an AI-powered file search tool that lets users find files using natural language and contextual memory instead of exact filenames. It understands file content and retrieves the most relevant results based on meaning, making file search faster and more intuitive.  <h4>
 </p>
 
 <h2 align="center"> WhereTF </h2>
@@ -61,22 +63,46 @@ docker-compose down
 <table>
 	<tr align="center">
 		<td>
-			<b>Maneet Gupta</b><br><br>
-			<img src="https://github.com/RK-NerdyBirdy.png" width="150" height="150" style="border-radius:50%;" alt="Maneet Gupta"><br><br>
-			<a href="https://github.com/RK-NerdyBirdy">GitHub</a> | 
-			<a href="https://www.linkedin.com/in/maneet-gupta/">LinkedIn</a>
+		Maneet Gupta
+		<p align="center">
+			<img src = "https://dscvit.com/images/dsc-logo-square.svg" width="150" height="150" alt="Your Name Here (Insert Your Image Link In Src">
+		</p>
+			<p align="center">
+				<a href = "https://github.com/RK-NerdyBirdy">
+					<img src = "http://www.iconninja.com/files/241/825/211/round-collaboration-social-github-code-circle-network-icon.svg" width="36" height = "36" alt="GitHub"/>
+				</a>
+				<a href = "https://www.linkedin.com/in/maneet-gupta/">
+					<img src = "http://www.iconninja.com/files/863/607/751/network-linkedin-social-connection-circular-circle-media-icon.svg" width="36" height="36" alt="LinkedIn"/>
+				</a>
+			</p>
 		</td>
 		<td>
-			<b>Aryan Rangarajan</b><br><br>
-			<img src="https://github.com/Aryan-Ranga.png" width="150" height="150" style="border-radius:50%;" alt="Aryan Rangarajan"><br><br>
-			<a href="https://github.com/Aryan-Ranga">GitHub</a> | 
-			<a href="https://www.linkedin.com/in/aryan-rangarajan-791632371/">LinkedIn</a>
+		Aryan Rangarajan
+		<p align="center">
+			<img src = "https://dscvit.com/images/dsc-logo-square.svg" width="150" height="150" alt="Your Name Here (Insert Your Image Link In Src">
+		</p>
+			<p align="center">
+				<a href = "https://github.com/Aryan-Ranga">
+					<img src = "http://www.iconninja.com/files/241/825/211/round-collaboration-social-github-code-circle-network-icon.svg" width="36" height = "36" alt="GitHub"/>
+				</a>
+				<a href = "https://www.linkedin.com/in/aryan-rangarajan-791632371/">
+					<img src = "http://www.iconninja.com/files/863/607/751/network-linkedin-social-connection-circular-circle-media-icon.svg" width="36" height="36" alt="LinkedIn"/>
+				</a>
+			</p>
 		</td>
 		<td>
-			<b>Prakhar Sethi</b><br><br>
-			<img src="https://github.com/Prakhar-Sethi012.png" width="150" height="150" style="border-radius:50%;" alt="Prakhar Sethi"><br><br>
-			<a href="https://github.com/Prakhar-Sethi012">GitHub</a> | 
-			<a href="https://www.linkedin.com/in/prakhar-sethi-1a1818393/">LinkedIn</a>
+		Prakhar Sethi
+		<p align="center">
+			<img src = "https://dscvit.com/images/dsc-logo-square.svg" width="150" height="150" alt="Your Name Here (Insert Your Image Link In Src">
+		</p>
+			<p align="center">
+				<a href = "https://github.com/Prakhar-Sethi012">
+					<img src = "http://www.iconninja.com/files/241/825/211/round-collaboration-social-github-code-circle-network-icon.svg" width="36" height = "36" alt="GitHub"/>
+				</a>
+				<a href = "https://www.linkedin.com/in/prakhar-sethi-1a1818393/">
+					<img src = "http://www.iconninja.com/files/863/607/751/network-linkedin-social-connection-circular-circle-media-icon.svg" width="36" height="36" alt="LinkedIn"/>
+				</a>
+			</p>
 		</td>
 	</tr>
 </table>
