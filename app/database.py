@@ -18,6 +18,16 @@ SessionLocal = sessionmaker(
     autocommit=False,
 )
 
+def get_db():
+    """
+    Dependency that creates a new SQLAlchemy session per request
+    and ensures it is safely closed after the request is finished.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 class Base(DeclarativeBase):
     pass

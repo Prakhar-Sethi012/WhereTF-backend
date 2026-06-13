@@ -118,7 +118,7 @@ SELECT
     fc.content_text,
     1 - (fc.embedding <=> CAST(:query_vec AS vector)) AS score
 FROM file_content fc
-JOIN file f ON f.id = fc.file_id
+JOIN files f ON f.id = fc.file_id
 WHERE 1=1 {where}
 ORDER BY fc.embedding <=> CAST(:query_vec AS vector) ASC
 LIMIT :top_k;
@@ -146,7 +146,7 @@ SELECT
     fc.content_text,
     ts_rank_cd(fc.keyword_tokens, plainto_tsquery('english', :query_text)) AS score
 FROM file_content fc
-JOIN file f ON f.id = fc.file_id
+JOIN files f ON f.id = fc.file_id
 WHERE fc.keyword_tokens @@ plainto_tsquery('english', :query_text) {where}
 ORDER BY score DESC
 LIMIT :top_k;
@@ -182,7 +182,7 @@ WITH vector_ranked AS (
             ORDER BY fc.embedding <=> CAST(:query_vec AS vector) ASC
         )                                                              AS rank
     FROM file_content fc
-    JOIN file f ON f.id = fc.file_id
+    JOIN files f ON f.id = fc.file_id
     WHERE 1=1 {where}
     LIMIT {pool}
 ),
@@ -196,7 +196,7 @@ keyword_ranked AS (
             ) DESC
         )                                                              AS rank
     FROM file_content fc
-    JOIN file f ON f.id = fc.file_id
+    JOIN files f ON f.id = fc.file_id
     WHERE fc.keyword_tokens @@ plainto_tsquery('english', :query_text) {where}
     LIMIT {pool}
 ),
@@ -217,7 +217,7 @@ SELECT
     fused.rrf_score                                                    AS score
 FROM fused
 JOIN file_content fc ON fc.id = fused.chunk_id
-JOIN file         f  ON f.id  = fc.file_id
+JOIN files         f  ON f.id  = fc.file_id
 ORDER BY fused.rrf_score DESC
 LIMIT :top_k;
 """.strip()
