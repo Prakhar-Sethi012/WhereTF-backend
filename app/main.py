@@ -1,7 +1,12 @@
 from fastapi import FastAPI
+from app.routes import search
+
 app = FastAPI(
     title="WhereTF Backend"
 )
+
+app.include_router(search.router)
+
 @app.get("/health", tags=["System"])
 def health_check():
     """
