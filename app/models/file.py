@@ -19,8 +19,10 @@ class File(Base):
     indexed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default='{}')
+    
+    # NEWLY ADDED : The context column for storing user-defined descriptions
+    context: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Link to the contents table
     contents = relationship("FileContent", back_populates="file", cascade="all, delete-orphan")
 
     # Indexes from the image
