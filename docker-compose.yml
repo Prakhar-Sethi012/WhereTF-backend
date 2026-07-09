@@ -21,11 +21,25 @@ services:
     container_name: wheretf-backend
     ports:
       - "8000:8000"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/wheretf
 
+# Added Ollama For Query Expansion
+  ollama:
+    image: ollama/ollama:latest
+    container_name: wheretf-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  ollama_data:

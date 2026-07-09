@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from pydantic import BaseModel
 from typing import List, Optional
-
+from app.models.relationship import FileRelationship
 from app.database import get_db
 from app.models import File
 
@@ -67,3 +67,35 @@ def delete_file(file_id: uuid.UUID, db: Session = Depends(get_db)):
     db.commit()
     
     return {"status": "success", "message": f"File and vectors wiped successfully."}
+
+# 4. File relationship
+@router.get("/{file_id}/related")
+def get_related_files(file_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Returns a list of files mathematically related to the requested file."""
+    
+    # Check if the file exists
+    db_file = db.scalar(select(File).where(File.id == file_id))
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Fetch relationships where this file is the source
+    relationships = db.execute(
+        select(FileRelationship, File)
+        .join(File, FileRelationship.target_file_id == File.id)
+        .where(FileRelationship.source_file_id == file_id)
+        .order_by(FileRelationship.similarity_score.desc())
+    ).all()
+
+    return {
+        "status": "success",
+        "file_id": str(file_id),
+        "related_files": [
+            {
+                "target_file_id": str(rel.FileRelationship.target_file_id),
+                "similarity_score": round(rel.FileRelationship.similarity_score, 4),
+                "file_path": rel.File.file_path,
+                "mime_type": rel.File.mime_type
+            }
+            for rel in relationships
+        ]
+    }
