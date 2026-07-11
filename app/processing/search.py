@@ -34,7 +34,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from .embeddings import _get_model
+from .cache import ModelCache
 from .expansion import generate_hypothetical_document
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ def embed_query(query: str) -> list[float]:
         384-dimensional unit vector, ready to be cast to pgvector's
         ``vector`` type.
     """
-    model = _get_model()
+    model = ModelCache.get_encoder()
     vec = model.encode(
         [query],
         convert_to_numpy=True,
