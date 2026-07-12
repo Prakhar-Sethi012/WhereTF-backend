@@ -17,6 +17,7 @@ import io
 import logging
 from functools import lru_cache
 from typing import Sequence
+from .cache import ModelCache  # added a new import 
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,8 @@ def ocr_image_bytes(
         import numpy as np  # type: ignore
         from PIL import Image  # type: ignore
 
-        reader = _get_reader(tuple(languages))
+        #reader = _get_reader(tuple(languages))
+        reader = ModelCache.get_ocr_reader(tuple(languages))
 
         # Convert bytes → PIL → numpy (EasyOCR accepts numpy arrays natively)
         pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")

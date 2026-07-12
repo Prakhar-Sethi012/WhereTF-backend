@@ -34,7 +34,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from .embeddings import _get_model
+from .cache import ModelCache
+from .expansion import generate_hypothetical_document
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ def embed_query(query: str) -> list[float]:
         384-dimensional unit vector, ready to be cast to pgvector's
         ``vector`` type.
     """
-    model = _get_model()
+    model = ModelCache.get_encoder()
     vec = model.encode(
         [query],
         convert_to_numpy=True,
@@ -284,10 +285,17 @@ def build_query(
     """
     logger.info("[search] Building %s query: %r (top_k=%d)", mode, query, top_k)
 
-    # 1. Embed
-    vector = embed_query(query)
+    # ---> NEW: Intercept and Expand <---
+    # Only generate a hypothetical document if we are doing vector math
+    if mode in ("vector", "hybrid"):
+        expanded_text_for_vector = generate_hypothetical_document(query)
+    else:
+        expanded_text_for_vector = query
 
-    # 2. Build SQL variants (pre-build all three so the API can expose them)
+    # 1. Embed (Using the HYPOTHETICAL document)
+    vector = embed_query(expanded_text_for_vector)
+
+    # 2. Build SQL variants
     has_filter = file_filter is not None
     sql = {
         "vector":  _sql_vector(top_k, has_filter),
@@ -295,16 +303,13 @@ def build_query(
         "hybrid":  _sql_hybrid(top_k, has_filter, rrf_k=rrf_k),
     }
 
-    # 3. Build bind parameters for the chosen mode
+    # 3. Build bind parameters
     params: dict[str, Any] = {"top_k": top_k}
 
     needs_vec  = mode in ("vector", "hybrid")
     needs_text = mode in ("keyword", "hybrid")
 
     if needs_vec:
-        # pgvector accepts the vector as a Python list; SQLAlchemy passes it
-        # through.  If you hit type errors, cast explicitly:
-        # str(vector)  →  "[0.12, -0.34, …]"  (pgvector's text literal)
         params["query_vec"] = str(vector)
 
     if needs_text:
@@ -315,13 +320,13 @@ def build_query(
 
     return SearchPayload(
         query=query,
+        expanded_query=expanded_text_for_vector,
         vector=vector,
         mode=mode,
         top_k=top_k,
         sql=sql,
         params=params,
     )
-
 
 # ---------------------------------------------------------------------------
 # Convenience: just get the vector (for callers that run their own SQL)

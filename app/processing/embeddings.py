@@ -14,8 +14,9 @@ The model is loaded once and cached for the lifetime of the process.
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 from typing import TYPE_CHECKING
+
+from .cache import ModelCache  # <-- Importing our new Singleton
 
 if TYPE_CHECKING:
     from .extractors import ChunkData
@@ -24,27 +25,6 @@ logger = logging.getLogger(__name__)
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 DEFAULT_BATCH_SIZE = 64
-
-
-# ---------------------------------------------------------------------------
-# Lazy model singleton
-# ---------------------------------------------------------------------------
-
-@lru_cache(maxsize=1)
-def _get_model():
-    """Load and cache the SentenceTransformer model (once per process)."""
-    try:
-        from sentence_transformers import SentenceTransformer  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError(
-            "sentence-transformers is required. "
-            "Install it with:  pip install sentence-transformers"
-        ) from exc
-
-    logger.info("[embeddings] Loading model '%s' …", MODEL_NAME)
-    model = SentenceTransformer(MODEL_NAME)
-    logger.info("[embeddings] Model loaded.")
-    return model
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +63,8 @@ def embed_chunks(
     if not pending_indices:
         return chunks
 
-    model = _get_model()
+    # grabs the model from RAM using singleton
+    model = ModelCache.get_encoder()
     texts = [chunks[i]["content_text"] for i in pending_indices]
 
     logger.info(
