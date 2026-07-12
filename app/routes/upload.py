@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Form, UploadFile, File, BackgroundTasks, HTTPException
 
 from app.services.indexer import background_index_file
 
@@ -11,7 +11,8 @@ router = APIRouter(tags=["File Upload"])
 @router.post("/upload/")
 async def upload_file(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    original_path: str = Form(...)
 ):
     """
     Accept a document and send it for background indexing.
@@ -27,7 +28,8 @@ async def upload_file(
 
         background_tasks.add_task(
             background_index_file,
-            temp_path
+            temp_path,
+            original_path
         )
 
         return {

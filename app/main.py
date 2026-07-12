@@ -5,6 +5,7 @@ import logging
 from app.routes import search
 from app.routes import upload
 from app.routes import files 
+from app.routes import watch
 from app.processing.cache import ModelCache  # <-- Import the cache
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ app = FastAPI(
 app.include_router(search.router)
 app.include_router(upload.router)
 app.include_router(files.router)
+app.include_router(watch.router)
 
 @app.get("/health", tags=["System"])
 def health_check():

@@ -29,6 +29,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/wheretf
+    volumes:
+      - .:/app 
 
 # Added Ollama For Query Expansion
   ollama:
