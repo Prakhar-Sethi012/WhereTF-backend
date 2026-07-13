@@ -68,6 +68,76 @@ def delete_file(file_id: uuid.UUID, db: Session = Depends(get_db)):
     
     return {"status": "success", "message": f"File and vectors wiped successfully."}
 
+
+class FilePathRequest(BaseModel):
+    file_path: str
+
+
+@router.post("/delete-by-path")
+def delete_file_by_path(req: FilePathRequest, db: Session = Depends(get_db)):
+
+    db_file = db.scalar(
+        select(File).where(File.file_path == req.file_path)
+    )
+
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    db.delete(db_file)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": "File deleted successfully."
+    }
+
+class FileRenameRequest(BaseModel):
+    old_path: str
+    new_path: str
+
+@router.post("/rename")
+def rename_file(req: FileRenameRequest, db: Session = Depends(get_db)):
+
+    db_file = db.scalar(
+        select(File).where(File.file_path == req.old_path)
+    )
+
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    db_file.file_path = req.new_path
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": "File renamed successfully."
+    }
+
+class FileCheckRequest(BaseModel):
+    file_path: str
+    file_hash: str
+
+@router.post("/needs-indexing")
+def needs_indexing(req: FileCheckRequest, db: Session = Depends(get_db)):
+    db_file = db.scalar(
+        select(File).where(
+            File.file_path == req.file_path
+        )
+    )
+
+    if db_file is None:
+        return {
+            "needs_indexing": True
+        }
+
+    if db_file.file_hash == req.file_hash:
+        return {
+            "needs_indexing": False
+        }
+
+    return {
+        "needs_indexing": True
 # 4. File relationship
 @router.get("/{file_id}/related")
 def get_related_files(file_id: uuid.UUID, db: Session = Depends(get_db)):
