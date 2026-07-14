@@ -14,13 +14,17 @@ def generate_hypothetical_document(query: str) -> str:
     Uses a local LLM via Ollama to generate a hypothetical textbook answer 
     for the user's query. This is the core of the HyDE algorithm.
     """
-    # The system prompt forces the LLM to write like a document in your database,
-    # rather than acting like a chat assistant.
+
     prompt = (
-        "You are an expert technical writer. Write a single, concise, factual, "
-        "and highly technical textbook paragraph that directly answers the following "
-        "search query. Do not include conversational filler, introductions, or conclusions. "
-        f"Query: {query}"
+        "You are an expert search engine query expander. Your task is to take a short user query "
+        "and generate a highly detailed, technical and non technical extended description that represents what the ideal "
+        "target document would look like. \n\n"
+        "Rules:\n"
+        "1.If the query is technical,write a 2-3 sentence technical paragraph exlpaining the core concepts of the query. \n"
+        "2.If its non-technical , generate a description/intoduction of the query. \n"
+        "3. Naturally weave in relevant synonyms, alternate phrasing, and associated technical and non technical keywords.\n"
+        "4. Output ONLY the extended description. Do not include introductory phrases, labels, or conversational filler.\n\n"
+        f"User Query: {query}"
     )
 
     payload = {
