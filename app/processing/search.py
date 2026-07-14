@@ -328,6 +328,56 @@ def build_query(
         params=params,
     )
 
+
+def build_normal_query(
+    query: str,
+    *,
+    mode: SearchMode = "hybrid",
+    top_k: int = 10,
+    file_filter: str | None = None,
+    rrf_k: int = 60,
+) -> SearchPayload:
+    """
+    Standard search builder. 
+    Bypasses LLM query expansion and directly vectorizes the raw user query.
+    """
+    logger.info("[search] Building NORMAL %s query: %r (top_k=%d)", mode, query, top_k)
+
+    # 1. Embed the exact user query directly (NO LLM expansion)
+    vector = embed_query(query)
+
+    # 2. Build SQL variants
+    has_filter = file_filter is not None
+    sql = {
+        "vector":  _sql_vector(top_k, has_filter),
+        "keyword": _sql_keyword(top_k, has_filter),
+        "hybrid":  _sql_hybrid(top_k, has_filter, rrf_k=rrf_k),
+    }
+
+    # 3. Build bind parameters
+    params: dict[str, Any] = {"top_k": top_k}
+
+    needs_vec  = mode in ("vector", "hybrid")
+    needs_text = mode in ("keyword", "hybrid")
+
+    if needs_vec:
+        params["query_vec"] = str(vector)
+
+    if needs_text:
+        params["query_text"] = query
+
+    if has_filter:
+        params["file_filter"] = file_filter
+
+    return SearchPayload(
+        query=query,
+        expanded_query=query,  # Stays identical to raw query
+        vector=vector,
+        mode=mode,
+        top_k=top_k,
+        sql=sql,
+        params=params,
+    )
 # ---------------------------------------------------------------------------
 # Convenience: just get the vector (for callers that run their own SQL)
 # ---------------------------------------------------------------------------
