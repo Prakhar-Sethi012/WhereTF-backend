@@ -138,6 +138,7 @@ def needs_indexing(req: FileCheckRequest, db: Session = Depends(get_db)):
 
     return {
         "needs_indexing": True
+        }
 # 4. File relationship
 @router.get("/{file_id}/related")
 def get_related_files(file_id: uuid.UUID, db: Session = Depends(get_db)):

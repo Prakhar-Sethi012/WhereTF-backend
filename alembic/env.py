@@ -16,10 +16,14 @@ config = context.config
 
 # Force Alembic to use the URL from our environment variables
 # If no .env is found, it defaults to the Docker container URL
-config.set_main_option(
-    "sqlalchemy.url", 
-    os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@db:5432/wheretf")
-)
+# 1. Fetch the URL from the environment (or use default)
+database_url = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@db:5432/wheretf")
+
+# 2. Escape any '%' signs so configparser doesn't crash on passwords with special characters
+escaped_url = database_url.replace("%", "%%")
+
+# 3. Safely set the main option
+config.set_main_option("sqlalchemy.url", escaped_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
