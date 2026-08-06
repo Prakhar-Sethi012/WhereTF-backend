@@ -1,4 +1,4 @@
-from .events import FileSystemEventHandler
+from watchdog.events import FileSystemEventHandler
 from .api import upload, delete, modify, rename
 import time
 
