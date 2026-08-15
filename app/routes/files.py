@@ -20,6 +20,7 @@ class FileUpdatePayload(BaseModel):
 # 1. THE DASHBOARD: Get all files
 @router.get("/")
 def get_all_files(db: Session = Depends(get_db)):
+<<<<<<< Updated upstream
     """Returns a list of all indexed files for the frontend UI."""
     files = db.execute(select(File)).scalars().all()
     
@@ -34,6 +35,17 @@ def get_all_files(db: Session = Depends(get_db)):
         }
         for f in files
     ]
+=======
+    """Retrieves all indexed files and their metadata for the dashboard view."""
+    # Using db.scalars() to get a list of File objects rather than a single scalar
+    db_files = db.scalars(select(File)).all()
+    
+    return {
+        "status": "success",
+        "count": len(db_files),
+        "data": db_files
+    }
+>>>>>>> Stashed changes
 
 # 2. THE METADATA MANAGER: Update tags and context
 @router.patch("/{file_id}")
