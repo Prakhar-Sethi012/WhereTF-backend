@@ -19,7 +19,8 @@ class File(Base):
     indexed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default='{}')
-    
+    # Add this inside your File class:
+    state: Mapped[str] = mapped_column(String, server_default="pending", nullable=False)
     # NEWLY ADDED : The context column for storing user-defined descriptions
     context: Mapped[str | None] = mapped_column(Text, nullable=True)
 

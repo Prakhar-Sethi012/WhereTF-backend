@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy.sql import func
-from sqlalchemy import Float, ForeignKey, UniqueConstraint
+from sqlalchemy import Float, ForeignKey, UniqueConstraint, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
@@ -14,7 +14,8 @@ class FileRelationship(Base):
     target_file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("files.id", ondelete="CASCADE"))
     
     similarity_score: Mapped[float] = mapped_column(Float, nullable=False)
-
+    relation_type: Mapped[str] = mapped_column(String, server_default="semantic", nullable=False)
+    
     #  Preventing the duplicate relationship pairs
     __table_args__ = (
         UniqueConstraint('source_file_id', 'target_file_id', name='uq_file_relationship'),

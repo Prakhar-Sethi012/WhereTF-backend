@@ -102,6 +102,7 @@ def background_index_file(temp_file_path: str, original_path: str):
     Processes a document (or ZIP archive), generates embeddings,
     stores everything in PostgreSQL, and cleans up temporary files.
     """
+    temp_extract_dir = None
     db = SessionLocal()
     all_saved_files = []
     
@@ -173,11 +174,14 @@ def background_index_file(temp_file_path: str, original_path: str):
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to index {temp_file_path}: {e}")
+        # FIX 8: Throw the error back to Celery so it reports "FAILURE"
+        raise e 
 
     finally:
         db.close()
-        
-        # Cleanup temporary file
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
-            logger.info(f"Removed temporary file: {temp_file_path}")
+        # FIX 6: Safely wipe the zip extraction folder even if a crash occurred
+        # (Make sure 'temp_extract_dir' is defined as None at the very top of the function!)
+        if 'temp_extract_dir' in locals() and temp_extract_dir and os.path.exists(temp_extract_dir):
+            shutil.rmtree(temp_extract_dir)
+            
+        # (The temp_file_path cleanup was successfully moved to tasks.py earlier!)

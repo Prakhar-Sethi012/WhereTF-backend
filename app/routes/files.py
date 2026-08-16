@@ -1,9 +1,7 @@
-# code for file-idexing,addition and updation of tags and deleting a specific file
-
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select,or_
 from pydantic import BaseModel
 from typing import List, Optional
 from app.models.relationship import FileRelationship
@@ -21,6 +19,7 @@ class FileUpdatePayload(BaseModel):
 @router.get("/")
 def get_all_files(db: Session = Depends(get_db)):
     """Retrieves all indexed files and their metadata for the dashboard view."""
+    # Using db.scalars() to get a list of File objects rather than a single scalar
     db_files = db.scalars(select(File)).all()
     
     return {
@@ -144,34 +143,45 @@ def needs_indexing(req: FileCheckRequest, db: Session = Depends(get_db)):
     return {
         "needs_indexing": True
         }
+
 # 4. File relationship
 @router.get("/{file_id}/related")
 def get_related_files(file_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Returns a list of files mathematically related to the requested file."""
+    """Returns a list of files mathematically related to the requested file (Symmetric query)."""
     
     # Check if the file exists
     db_file = db.scalar(select(File).where(File.id == file_id))
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Fetch relationships where this file is the source
-    relationships = db.execute(
-        select(FileRelationship, File)
-        .join(File, FileRelationship.target_file_id == File.id)
-        .where(FileRelationship.source_file_id == file_id)
+    # FIX 3: Fetch relationships where this file is EITHER the source or target
+    relationships = db.scalars(
+        select(FileRelationship)
+        .where(or_(
+            FileRelationship.source_file_id == file_id,
+            FileRelationship.target_file_id == file_id
+        ))
         .order_by(FileRelationship.similarity_score.desc())
     ).all()
+
+    related_data = []
+    for rel in relationships:
+        # Determine which ID is the "other" file in the relationship
+        other_id = rel.target_file_id if rel.source_file_id == file_id else rel.source_file_id
+        
+        # Fetch the actual file metadata for the other file
+        other_file = db.scalar(select(File).where(File.id == other_id))
+        
+        if other_file:
+            related_data.append({
+                "related_file_id": str(other_id),
+                "similarity_score": round(rel.similarity_score, 4),
+                "file_path": other_file.file_path,
+                "mime_type": other_file.mime_type
+            })
 
     return {
         "status": "success",
         "file_id": str(file_id),
-        "related_files": [
-            {
-                "target_file_id": str(rel.FileRelationship.target_file_id),
-                "similarity_score": round(rel.FileRelationship.similarity_score, 4),
-                "file_path": rel.File.file_path,
-                "mime_type": rel.File.mime_type
-            }
-            for rel in relationships
-        ]
+        "related_files": related_data
     }

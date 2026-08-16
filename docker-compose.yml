@@ -43,18 +43,6 @@ services:
     volumes:
       - .:/app
 
-<<<<<<< Updated upstream
-# Added Ollama For Query Expansion
-  ollama:
-    image: ollama/ollama:latest
-    container_name: wheretf-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-
-=======
   redis:
     image: redis:7-alpine
     container_name: wheretf-redis
@@ -76,7 +64,6 @@ services:
       - redis
       - db
       - ollama
->>>>>>> Stashed changes
 
 volumes:
   postgres_data:
