@@ -16,8 +16,18 @@ services:
       timeout: 5s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: wheretf-ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+
   backend:
-    build: .
+    build:
+      context: .
     container_name: wheretf-backend
     ports:
       - "8000:8000"
@@ -29,19 +39,31 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/wheretf
+      REDIS_URL: redis://redis:6379/0
     volumes:
-      - .:/app 
+      - .:/app
 
-# Added Ollama For Query Expansion
-  ollama:
-    image: ollama/ollama:latest
-    container_name: wheretf-ollama
+  redis:
+    image: redis:7-alpine
+    container_name: wheretf-redis
     ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
+      - "6379:6379"
     restart: unless-stopped
 
+  worker:
+    build:
+      context: .
+    container_name: wheretf-worker
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/wheretf
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+      - db
+      - ollama
 
 volumes:
   postgres_data:
