@@ -16,15 +16,6 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: wheretf-ollama
-    ports:
-      - "11434:11434"
-    restart: unless-stopped
-    volumes:
-      - ollama_data:/root/.ollama
-
   backend:
     build:
       context: .
@@ -40,8 +31,11 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/wheretf
       REDIS_URL: redis://redis:6379/0
+      # Tells the sentence-transformers library where to cache the Jina CLIP model
+      HF_HOME: /root/.cache/huggingface
     volumes:
       - .:/app
+      - hf_cache:/root/.cache/huggingface
 
   redis:
     image: redis:7-alpine
@@ -57,14 +51,17 @@ services:
     command: celery -A app.worker.celery_app worker --loglevel=info
     volumes:
       - .:/app
+      - hf_cache:/root/.cache/huggingface
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/wheretf
       REDIS_URL: redis://redis:6379/0
+      HF_HOME: /root/.cache/huggingface
     depends_on:
-      - redis
-      - db
-      - ollama
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   postgres_data:
-  ollama_data:
+  hf_cache:
