@@ -15,8 +15,8 @@ class FileContent(Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content_text: Mapped[str] = mapped_column(Text, nullable=False)
     
-    # 384 dimensions for all-MiniLM-L6-v2
-    embedding: Mapped[list[float]] = mapped_column(Vector(384))
+    # CHANGED: 768 dimensions for Jina CLIP
+    embedding: Mapped[list[float]] = mapped_column(Vector(768))
     
     # Generated column for Full Text Search
     keyword_tokens = mapped_column(TSVECTOR, Computed("to_tsvector('english', content_text)", persisted=True))

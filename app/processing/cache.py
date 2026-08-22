@@ -11,12 +11,14 @@ class ModelCache:
         if cls._encoder is None:
             try:
                 from sentence_transformers import SentenceTransformer
-                logger.info("[System] Loading Sentence Transformer into RAM...")
-                #  loading it exactly once here
-                cls._encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-                logger.info("[System] Sentence Transformer loaded successfully.")
+                logger.info("[System] Loading Jina CLIP into RAM...")
+                cls._encoder = SentenceTransformer(
+                    "jinaai/jina-clip-v1", 
+                    trust_remote_code=True
+                )
+                logger.info("[System] Jina CLIP loaded successfully.")
             except ImportError as exc:
-                raise RuntimeError("pip install sentence-transformers") from exc
+                raise RuntimeError("pip install sentence-transformers einops") from exc
         return cls._encoder
 
     @classmethod
@@ -25,11 +27,9 @@ class ModelCache:
             try:
                 import easyocr
                 import torch
-                # Safely check for GPU, otherwise fallback to CPU
                 gpu_available = torch.cuda.is_available()
-                logger.info(f"[System] Loading EasyOCR into RAM (gpu={gpu_available})...")
+                logger.info(f"[System] Loading EasyOCR (gpu={gpu_available})...")
                 cls._ocr_reader = easyocr.Reader(list(languages), gpu=gpu_available)
-                logger.info("[System] EasyOCR loaded successfully.")
             except ImportError as exc:
                 raise RuntimeError("pip install easyocr torch") from exc
         return cls._ocr_reader
