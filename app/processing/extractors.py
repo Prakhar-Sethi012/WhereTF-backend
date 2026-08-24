@@ -27,7 +27,7 @@ import json
 import logging
 import zipfile
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, Any
 
 from .ocr import ocr_image_bytes
 
@@ -38,9 +38,10 @@ logger = logging.getLogger(__name__)
 # Shared type
 # ---------------------------------------------------------------------------
 
-class ChunkData(TypedDict):
+class ChunkData(TypedDict, total=False):
     chunk_index: int
     content_text: str
+    content_image: Any  # Accepts the PIL Image object for Jina CLIP
     # embedding and keyword_tokens intentionally absent here;
     # they are injected by the embedding pipeline.
 
@@ -396,20 +397,31 @@ def extract_xlsx(path: Path) -> list[ChunkData]:
 
 
 # ---------------------------------------------------------------------------
-# Standalone image extractor (OCR only)
+# Standalone image extractor (OCR AND Vision Encoding)
 # ---------------------------------------------------------------------------
 
 def extract_image(path: Path) -> list[ChunkData]:
-    """Single chunk: full OCR output of the image file."""
-    img_bytes = path.read_bytes()
-    ocr_text = ocr_image_bytes(img_bytes)
-    if not ocr_text:
+    """Single chunk: full OCR output AND the PIL Image for Jina Vision."""
+    from PIL import Image
+    
+    # 1. Load the raw image for the Jina CLIP Vision Encoder
+    try:
+        # Convert to RGB to safely drop alpha channels (transparency)
+        img_obj = Image.open(path).convert("RGB")
+    except Exception as exc:
+        logger.error("[image] Failed to open image %s: %s", path, exc)
         return []
-    # Images rarely exceed one chunk but run through rolling chunker for safety
-    return [
-        ChunkData(chunk_index=i, content_text=c)
-        for i, c in enumerate(_rolling_chunks(_clean(ocr_text)))
-    ]
+
+    # 2. Extract OCR text (optional, just in case there is text in the photo)
+    img_bytes = path.read_bytes()
+    ocr_text = ocr_image_bytes(img_bytes) or ""
+    
+    # 3. Return a single chunk containing BOTH the text and the image!
+    return [{
+        "chunk_index": 0,
+        "content_text": ocr_text,
+        "content_image": img_obj
+    }]
 
 
 # ---------------------------------------------------------------------------
