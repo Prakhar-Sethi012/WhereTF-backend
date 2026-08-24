@@ -52,12 +52,27 @@ def embed_chunks(
 
     # 2. Embed image chunks
     if images:
-        image_vectors = model.encode(
-            images=images,
-            batch_size=batch_size,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )
+        # Dynamically hunt down the underlying Jina CLIP AutoModel inside the wrapper
+        jina_hf_model = next((m for m in model.modules() if hasattr(m, "encode_image")), None)
+        
+        if not jina_hf_model:
+            raise RuntimeError("Could not find the Jina Vision encoder inside the model!")
+            
+        import torch
+        import numpy as np
+        
+        # Disable gradients to save RAM during the forward pass
+        with torch.no_grad():
+            image_vectors = jina_hf_model.encode_image(images)
+            
+        # Convert to a numpy array if it returned a PyTorch tensor
+        if isinstance(image_vectors, torch.Tensor):
+            image_vectors = image_vectors.cpu().numpy()
+            
+        # Normalize the vectors to ensure cosine similarity matches the text vectors
+        norms = np.linalg.norm(image_vectors, axis=1, keepdims=True)
+        image_vectors = image_vectors / np.maximum(norms, 1e-12)
+
         for list_pos, chunk_idx in enumerate(image_indices):
             chunks[chunk_idx]["embedding"] = image_vectors[list_pos].tolist()
             del chunks[chunk_idx]["content_image"]
