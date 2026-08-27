@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 from .cache import ModelCache
 from app.config import AppConfig
+
 if TYPE_CHECKING:
     from .extractors import ChunkData
 
@@ -16,7 +17,7 @@ def embed_chunks(
     batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> list["ChunkData"]:
     """
-    Embeds both text chunks and images using Jina CLIP into the same vector space.
+    Embeds both text chunks and images dynamically based on the active config tier.
     """
     if not chunks:
         return chunks
@@ -33,11 +34,11 @@ def embed_chunks(
     for i in pending_indices:
         if "content_image" in chunks[i]:
             if AppConfig.ENABLE_VISION:
-                # Pro / Balanced Tier: Keep the image for Jina CLIP
+                # Pro / Balanced Tier: Keep the image for the Vision model
                 image_indices.append(i)
                 images.append(chunks[i]["content_image"])
             else:
-                # Lite Tier: Throw away the image, Jina CLIP isn't loaded!
+                # Lite Tier: Throw away the image, Vision model isn't loaded!
                 del chunks[i]["content_image"]
         else:
             text_indices.append(i)
@@ -57,29 +58,18 @@ def embed_chunks(
 
     # 2. Embed image chunks
     if images:
-        # Dynamically hunt down the underlying Jina CLIP AutoModel inside the wrapper
-        jina_hf_model = next((m for m in model.modules() if hasattr(m, "encode_image")), None)
-        
-        if not jina_hf_model:
-            raise RuntimeError("Could not find the Jina Vision encoder inside the model!")
-            
-        import torch
-        import numpy as np
-        
-        # Disable gradients to save RAM during the forward pass
-        with torch.no_grad():
-            image_vectors = jina_hf_model.encode_image(images)
-            
-        # Convert to a numpy array if it returned a PyTorch tensor
-        if isinstance(image_vectors, torch.Tensor):
-            image_vectors = image_vectors.cpu().numpy()
-            
-        # Normalize the vectors to ensure cosine similarity matches the text vectors
-        norms = np.linalg.norm(image_vectors, axis=1, keepdims=True)
-        image_vectors = image_vectors / np.maximum(norms, 1e-12)
-
+        # Standard SentenceTransformers handles Jina and Nomic natively, 
+        # applies batching safely, and normalizes the vectors automatically.
+        image_vectors = model.encode(
+            images,
+            batch_size=batch_size,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )
         for list_pos, chunk_idx in enumerate(image_indices):
             chunks[chunk_idx]["embedding"] = image_vectors[list_pos].tolist()
+            
+            # Clean up the PIL Image so the DB insert doesn't crash
             del chunks[chunk_idx]["content_image"]
 
     return chunks
