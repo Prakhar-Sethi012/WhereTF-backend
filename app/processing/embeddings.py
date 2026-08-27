@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 from .cache import ModelCache
-
+from app.config import AppConfig
 if TYPE_CHECKING:
     from .extractors import ChunkData
 
@@ -32,8 +32,13 @@ def embed_chunks(
 
     for i in pending_indices:
         if "content_image" in chunks[i]:
-            image_indices.append(i)
-            images.append(chunks[i]["content_image"])
+            if AppConfig.ENABLE_VISION:
+                # Pro / Balanced Tier: Keep the image for Jina CLIP
+                image_indices.append(i)
+                images.append(chunks[i]["content_image"])
+            else:
+                # Lite Tier: Throw away the image, Jina CLIP isn't loaded!
+                del chunks[i]["content_image"]
         else:
             text_indices.append(i)
             texts.append(chunks[i]["content_text"])

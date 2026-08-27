@@ -4,15 +4,25 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Python dependencies separately so this layer is cached
-# unless requirements.txt changes.
+# Set a build argument (default to CPU mode to save space)
+ARG USE_GPU=0
+
 COPY requirements.txt .
 
+# Dynamically install PyTorch based on the USE_GPU flag
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
-    RUN python -m nltk.downloader punkt punkt_tab wordnet omw-1.4
+    if [ "$USE_GPU" = "1" ] ; then \
+        echo "Building for GPU..." && \
+        pip install -r requirements.txt ; \
+    else \
+        echo "Building for CPU..." && \
+        pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt ; \
+    fi
 
-# Copy application code after dependencies
+# Download NLTK data separately so it gets cached
+RUN python -m nltk.downloader punkt punkt_tab wordnet omw-1.4
+
+# Copy application code
 COPY . .
 
 EXPOSE 8000

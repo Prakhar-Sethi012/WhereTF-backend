@@ -1,4 +1,5 @@
 import logging
+from app.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -9,27 +10,25 @@ class ModelCache:
     @classmethod
     def get_encoder(cls):
         if cls._encoder is None:
-            try:
-                from sentence_transformers import SentenceTransformer
-                logger.info("[System] Loading Jina CLIP into RAM...")
-                cls._encoder = SentenceTransformer(
-                    "jinaai/jina-clip-v1", 
-                    trust_remote_code=True
-                )
-                logger.info("[System] Jina CLIP loaded successfully.")
-            except ImportError as exc:
-                raise RuntimeError("pip install sentence-transformers einops") from exc
+            from sentence_transformers import SentenceTransformer
+            logger.info(f"[System] Loading {AppConfig.MODEL_NAME} into RAM...")
+            cls._encoder = SentenceTransformer(
+                AppConfig.MODEL_NAME, 
+                trust_remote_code=True
+            )
         return cls._encoder
 
     @classmethod
     def get_ocr_reader(cls, languages=("en",)):
+        # If the active tier disables OCR, never load it into RAM
+        if not AppConfig.ENABLE_OCR:
+            return None
+
         if cls._ocr_reader is None:
-            try:
-                import easyocr
-                import torch
-                gpu_available = torch.cuda.is_available()
-                logger.info(f"[System] Loading EasyOCR (gpu={gpu_available})...")
-                cls._ocr_reader = easyocr.Reader(list(languages), gpu=gpu_available)
-            except ImportError as exc:
-                raise RuntimeError("pip install easyocr torch") from exc
+            import easyocr
+            import torch
+            gpu_available = torch.cuda.is_available()
+            logger.info(f"[System] Loading EasyOCR (gpu={gpu_available})...")
+            cls._ocr_reader = easyocr.Reader(list(languages), gpu=gpu_available)
+            
         return cls._ocr_reader

@@ -27,8 +27,9 @@ import json
 import logging
 import zipfile
 from pathlib import Path
-from typing import TypedDict, Any
+from typing import TypedDict, Any, NotRequired
 
+from app.config import AppConfig
 from .ocr import ocr_image_bytes
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,10 @@ logger = logging.getLogger(__name__)
 # Shared type
 # ---------------------------------------------------------------------------
 
-class ChunkData(TypedDict, total=False):
+class ChunkData(TypedDict):
     chunk_index: int
     content_text: str
-    content_image: Any  # Accepts the PIL Image object for Jina CLIP
+    content_image: NotRequired[Any]  # Accepts the PIL Image object for Jina CLIP
     # embedding and keyword_tokens intentionally absent here;
     # they are injected by the embedding pipeline.
 
@@ -127,11 +128,6 @@ def _pdf_image_to_png_bytes(img_meta: dict) -> bytes:
     pdfplumber stores raw decoded pixel data (not a container format) in
     img_meta["stream"].get_data().  We reconstruct a proper PNG from the
     dimensions and colour-space information that pdfplumber also exposes.
-
-    Supported colour spaces: DeviceRGB (3-channel), DeviceGray (1-channel),
-    and DeviceCMYK (4-channel, converted to RGB).
-    Falls back to trying the raw bytes directly (sometimes the stream IS
-    a JPEG or PNG already).
     """
     try:
         from PIL import Image  # type: ignore
@@ -189,18 +185,17 @@ def _pdf_image_to_png_bytes(img_meta: dict) -> bytes:
 
 def extract_pdf(path: Path) -> list[ChunkData]:
     """
-    One page = one text block.  The text blocks are then fed through the
-    rolling-window chunker so long pages produce overlapping chunks.
-
-    Each page block also includes OCR output from any embedded raster
-    images on that page.
+    Extracts text, runs OCR on embedded images, AND sends the raw 
+    embedded images to Jina CLIP.
     """
     try:
         import pdfplumber  # type: ignore
+        from PIL import Image
     except ImportError as exc:
-        raise RuntimeError("pip install pdfplumber") from exc
+        raise RuntimeError("pip install pdfplumber Pillow") from exc
 
     page_blocks: list[str] = []
+    image_chunks: list[ChunkData] = []
 
     with pdfplumber.open(str(path)) as pdf:
         for page_idx, page in enumerate(pdf.pages):
@@ -211,31 +206,54 @@ def extract_pdf(path: Path) -> list[ChunkData]:
             if native.strip():
                 parts.append(native)
 
-            # 2. Embedded images → PNG reconstruction → OCR
+            # 2. Embedded images
             for img_meta in page.images:
                 try:
                     png_bytes = _pdf_image_to_png_bytes(img_meta)
                     if not png_bytes:
                         continue
-                    ocr_text = ocr_image_bytes(png_bytes)
-                    if ocr_text:
-                        parts.append(f"[OCR] {ocr_text}")
+                    
+                    # A. OCR the image text (if enabled by config)
+                    if AppConfig.ENABLE_OCR:
+                        ocr_text = ocr_image_bytes(png_bytes)
+                        if ocr_text:
+                            parts.append(f"[OCR] {ocr_text}")
+                            
+                    # B. Save the image for Jina CLIP
+                    try:
+                        pil_img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+                        image_chunks.append({
+                            "chunk_index": 0, # Placeholder, updated below
+                            "content_text": f"[Embedded Image on Page {page_idx + 1}]",
+                            "content_image": pil_img
+                        })
+                    except Exception as e:
+                        logger.debug("[pdf] Failed to load image for CLIP: %s", e)
+
                 except Exception as exc:  # noqa: BLE001
-                    logger.debug("[pdf] OCR failed on page %d image: %s", page_idx, exc)
+                    logger.debug("[pdf] Failed processing page %d image: %s", page_idx, exc)
 
             block = _clean("\n".join(parts))
             if block:
                 page_blocks.append(block)
 
-    # Join all page blocks then apply rolling chunker so cross-page context
-    # is preserved at page boundaries too.
+    # 3. Combine text chunks and image chunks with correct sequential indexes
     full_text = "\n\n".join(page_blocks)
     raw_chunks = _rolling_chunks(full_text)
+    
+    final_chunks: list[ChunkData] = []
+    global_idx = 0
+    
+    for c in raw_chunks:
+        final_chunks.append({"chunk_index": global_idx, "content_text": c})
+        global_idx += 1
+        
+    for img_chunk in image_chunks:
+        img_chunk["chunk_index"] = global_idx
+        final_chunks.append(img_chunk)
+        global_idx += 1
 
-    return [
-        ChunkData(chunk_index=i, content_text=c)
-        for i, c in enumerate(raw_chunks)
-    ]
+    return final_chunks
 
 
 # ---------------------------------------------------------------------------
@@ -243,17 +261,14 @@ def extract_pdf(path: Path) -> list[ChunkData]:
 # ---------------------------------------------------------------------------
 
 def extract_docx(path: Path) -> list[ChunkData]:
-    """
-    All paragraphs are joined into a single document string, then split
-    via the rolling-window chunker.  Embedded images are OCR-ed and
-    inserted at the end of the text before chunking.
-    """
     try:
         import docx as _docx  # type: ignore  (python-docx)
+        from PIL import Image
     except ImportError as exc:
-        raise RuntimeError("pip install python-docx") from exc
+        raise RuntimeError("pip install python-docx Pillow") from exc
 
     doc = _docx.Document(str(path))
+    image_chunks: list[ChunkData] = []
 
     # ---- collect image bytes from word/media/ ----
     with zipfile.ZipFile(str(path), "r") as zf:
@@ -270,21 +285,44 @@ def extract_docx(path: Path) -> list[ChunkData]:
         if text:
             lines.append(text)
 
-    # Append OCR from all embedded images
+    # Process embedded images for OCR and Jina CLIP
     for img_bytes in media_bytes:
         if not img_bytes:
             continue
-        ocr_text = ocr_image_bytes(img_bytes)
-        if ocr_text:
-            lines.append(f"[OCR] {ocr_text}")
+            
+        # A. OCR (if enabled by config)
+        if AppConfig.ENABLE_OCR:
+            ocr_text = ocr_image_bytes(img_bytes)
+            if ocr_text:
+                lines.append(f"[OCR] {ocr_text}")
+            
+        # B. Vision Encoding
+        try:
+            pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+            image_chunks.append({
+                "chunk_index": 0, # Placeholder
+                "content_text": "[Embedded Image in DOCX]",
+                "content_image": pil_img
+            })
+        except Exception:
+            pass
 
     full_text = _clean("\n".join(lines))
     raw_chunks = _rolling_chunks(full_text)
 
-    return [
-        ChunkData(chunk_index=i, content_text=c)
-        for i, c in enumerate(raw_chunks)
-    ]
+    final_chunks: list[ChunkData] = []
+    global_idx = 0
+    
+    for c in raw_chunks:
+        final_chunks.append({"chunk_index": global_idx, "content_text": c})
+        global_idx += 1
+        
+    for img_chunk in image_chunks:
+        img_chunk["chunk_index"] = global_idx
+        final_chunks.append(img_chunk)
+        global_idx += 1
+
+    return final_chunks
 
 
 # ---------------------------------------------------------------------------
@@ -292,21 +330,17 @@ def extract_docx(path: Path) -> list[ChunkData]:
 # ---------------------------------------------------------------------------
 
 def extract_pptx(path: Path) -> list[ChunkData]:
-    """
-    One chunk per slide (slides are natural semantic units in presentations).
-    Slide text + speaker notes + OCR of every embedded image on that slide.
-    Long slides are further split by the rolling chunker.
-    """
     try:
         from pptx import Presentation  # type: ignore
+        from PIL import Image
     except ImportError as exc:
-        raise RuntimeError("pip install python-pptx") from exc
+        raise RuntimeError("pip install python-pptx Pillow") from exc
 
     prs = Presentation(str(path))
     chunks: list[ChunkData] = []
     global_chunk_idx = 0
 
-    for slide in prs.slides:
+    for slide_idx, slide in enumerate(prs.slides):
         parts: list[str] = []
 
         # 1. Text from all shapes
@@ -324,7 +358,7 @@ def extract_pptx(path: Path) -> list[ChunkData]:
             if notes_text:
                 parts.append(f"[Notes] {notes_text}")
 
-        # 3. Embedded images via shape relationships (most reliable path)
+        # 3. Embedded images via shape relationships
         seen_blobs: set[int] = set()
         for rel in slide.part.rels.values():
             try:
@@ -335,9 +369,25 @@ def extract_pptx(path: Path) -> list[ChunkData]:
                 if blob_id in seen_blobs:
                     continue
                 seen_blobs.add(blob_id)
-                ocr_text = ocr_image_bytes(blob)
-                if ocr_text:
-                    parts.append(f"[OCR] {ocr_text}")
+                
+                # A. OCR (if enabled by config)
+                if AppConfig.ENABLE_OCR:
+                    ocr_text = ocr_image_bytes(blob)
+                    if ocr_text:
+                        parts.append(f"[OCR] {ocr_text}")
+                    
+                # B. Vision Encoding
+                try:
+                    pil_img = Image.open(io.BytesIO(blob)).convert("RGB")
+                    chunks.append({
+                        "chunk_index": global_chunk_idx,
+                        "content_text": f"[Embedded Image on Slide {slide_idx + 1}]",
+                        "content_image": pil_img
+                    })
+                    global_chunk_idx += 1
+                except Exception:
+                    pass
+                    
             except Exception:  # noqa: BLE001
                 pass
 
@@ -346,7 +396,7 @@ def extract_pptx(path: Path) -> list[ChunkData]:
             continue
 
         for sub_chunk in _rolling_chunks(slide_text):
-            chunks.append(ChunkData(chunk_index=global_chunk_idx, content_text=sub_chunk))
+            chunks.append({"chunk_index": global_chunk_idx, "content_text": sub_chunk})
             global_chunk_idx += 1
 
     return chunks
@@ -389,7 +439,7 @@ def extract_xlsx(path: Path) -> list[ChunkData]:
         sheet_text = _clean(f"[Sheet: {sheet_name}]\n" + "\n".join(rows))
 
         for sub_chunk in _rolling_chunks(sheet_text):
-            chunks.append(ChunkData(chunk_index=global_idx, content_text=sub_chunk))
+            chunks.append({"chunk_index": global_idx, "content_text": sub_chunk})
             global_idx += 1
 
     wb.close()
@@ -404,7 +454,10 @@ def extract_image(path: Path) -> list[ChunkData]:
     """Single chunk: full OCR output AND the PIL Image for Jina Vision."""
     from PIL import Image
     
+    chunks = []
+    
     # 1. Load the raw image for the Jina CLIP Vision Encoder
+    img_obj = None
     try:
         # Convert to RGB to safely drop alpha channels (transparency)
         img_obj = Image.open(path).convert("RGB")
@@ -412,16 +465,26 @@ def extract_image(path: Path) -> list[ChunkData]:
         logger.error("[image] Failed to open image %s: %s", path, exc)
         return []
 
-    # 2. Extract OCR text (optional, just in case there is text in the photo)
-    img_bytes = path.read_bytes()
-    ocr_text = ocr_image_bytes(img_bytes) or ""
+    # 2. Extract OCR text (if enabled by config)
+    ocr_text = ""
+    if AppConfig.ENABLE_OCR:
+        img_bytes = path.read_bytes()
+        ocr_text = ocr_image_bytes(img_bytes) or ""
     
-    # 3. Return a single chunk containing BOTH the text and the image!
-    return [{
+    # 3. Create the chunk with mandatory fallback text
+    final_text = ocr_text if ocr_text.strip() else f"[Visual Content: {path.name}]"
+    
+    chunk: ChunkData = {
         "chunk_index": 0,
-        "content_text": ocr_text,
-        "content_image": img_obj
-    }]
+        "content_text": final_text,
+    }
+    
+    if img_obj:
+        chunk["content_image"] = img_obj
+        
+    chunks.append(chunk)
+
+    return chunks
 
 
 # ---------------------------------------------------------------------------
@@ -456,13 +519,13 @@ def extract_text(path: Path) -> list[ChunkData]:
         body   = "\n".join(lines[1:]) if len(lines) > 1 else ""
         sub_chunks = _rolling_chunks(_clean(body))
         return [
-            ChunkData(chunk_index=i, content_text=_clean(f"[Columns: {header}]\n{c}"))
+            {"chunk_index": i, "content_text": _clean(f"[Columns: {header}]\n{c}")}
             for i, c in enumerate(sub_chunks)
         ] if sub_chunks else []
 
     raw_chunks = _rolling_chunks(_clean(raw))
     return [
-        ChunkData(chunk_index=i, content_text=c)
+        {"chunk_index": i, "content_text": c}
         for i, c in enumerate(raw_chunks)
     ]
 
